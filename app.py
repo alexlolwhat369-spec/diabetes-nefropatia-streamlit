@@ -47,6 +47,7 @@ STATUS_META = {
 
 
 ASSET_DIR = Path(__file__).parent / "assets"
+RECIPE_ASSET_DIR = ASSET_DIR / "recipes"
 MEAL_IMAGE = {
     "早餐": ASSET_DIR / "breakfast.png",
     "午餐": ASSET_DIR / "lunch.png",
@@ -486,10 +487,8 @@ def inject_style() -> None:
 
 def page_header(title: str, subtitle: str) -> None:
     if st.session_state.get("current_module") != "首页":
-        back_col, _ = st.columns([1.2, 4])
-        with back_col:
-            if st.button("返回首页", key=f"back_{title}", use_container_width=True):
-                go_to_module("首页")
+        if st.button("← 返回首页", key=f"back_{title}", use_container_width=True):
+            go_to_module("首页")
     st.html(
         f"""
         <div class="main-title">{escape(title)}</div>
@@ -618,7 +617,8 @@ def detailed_recipe_steps(meal: dict) -> list[str]:
 
 
 def render_recipe_card(meal: dict) -> None:
-    image_path = MEAL_IMAGE.get(meal["time"])
+    specific_image = RECIPE_ASSET_DIR / f"{meal['id']}.png"
+    image_path = specific_image if specific_image.exists() else MEAL_IMAGE.get(meal["time"])
     if image_path and image_path.exists():
         st.image(str(image_path), use_container_width=True)
 
@@ -1062,6 +1062,44 @@ def today_meal_names() -> str:
         return "查看今日三餐计划"
 
 
+def today_overview_cards() -> list[dict]:
+    today_name = WEEK_DAYS[date.today().weekday()]
+    is_dialysis = today_name in st.session_state.dialysis_days
+    pending_meds = sum(1 for med in st.session_state.medications if status_for_med(med["id"]) == "pending")
+    missed_meds = sum(1 for med in st.session_state.medications if status_for_med(med["id"]) == "missed")
+    latest_glucose = (
+        f"{st.session_state.glucose_records[-1]['血糖']} mg/dL"
+        if st.session_state.glucose_records
+        else "今天还没有记录"
+    )
+    return [
+        {
+            "icon": "🩺",
+            "title": "今天安排",
+            "desc": "今天是透析日，请休息。" if is_dialysis else "今天不是透析日，可以做轻活动。",
+            "style": "primary" if is_dialysis else "",
+        },
+        {
+            "icon": "💊",
+            "title": "药物状态",
+            "desc": f"待服用 {pending_meds} 个，忘记 {missed_meds} 个。" if st.session_state.medications else "还没有添加药物。",
+            "style": "primary" if missed_meds else "",
+        },
+        {
+            "icon": "🩸",
+            "title": "最近血糖",
+            "desc": latest_glucose,
+            "style": "",
+        },
+        {
+            "icon": "🍽️",
+            "title": "今天三餐",
+            "desc": today_meal_names(),
+            "style": "",
+        },
+    ]
+
+
 def lobby_reminders() -> list[dict]:
     today_name = WEEK_DAYS[date.today().weekday()]
     is_dialysis = today_name in st.session_state.dialysis_days
@@ -1162,6 +1200,21 @@ def home_module() -> None:
         </div>
         """
     )
+
+    section_title("今天先做这些")
+    overview_cards = today_overview_cards()
+    top_cols = st.columns(2)
+    for index, card in enumerate(overview_cards):
+        with top_cols[index % 2]:
+            st.html(
+                f"""
+                <div class="quick-card {'primary' if card['style'] else ''}">
+                    <div class="big-icon">{escape(card["icon"])}</div>
+                    <div class="quick-title">{escape(card["title"])}</div>
+                    <div class="quick-desc">{escape(card["desc"])}</div>
+                </div>
+                """
+            )
 
     section_title("快速进入")
     cards = [
@@ -1765,22 +1818,12 @@ def main() -> None:
         st.html(
             """
             <div style="font-size:18px;line-height:1.6;color:#a9b0be;margin-top:24px;">
-            大字版界面<br>
-            明亮背景<br>
-            简单提醒
+            首页是主菜单<br>
+            点击大按钮进入功能<br>
+            每个页面都能返回首页
             </div>
             """
         )
-        if module != "首页":
-            st.html(
-                f"""
-                <div style="font-size:20px;font-weight:800;color:#34495e;margin-top:24px;">
-                当前页面<br>{escape(module)}
-                </div>
-                """
-            )
-            if st.button("返回首页", key="sidebar_back_home", use_container_width=True):
-                go_to_module("首页")
 
     if module == "首页":
         home_module()
