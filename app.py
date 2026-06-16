@@ -69,6 +69,8 @@ def setup_state() -> None:
         st.session_state.face_history = []
     if "hospital_phone" not in st.session_state:
         st.session_state.hospital_phone = ""
+    if "current_module" not in st.session_state:
+        st.session_state.current_module = "首页"
 
 
 def inject_style() -> None:
@@ -171,6 +173,131 @@ def inject_style() -> None:
             grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
             gap: 16px;
             margin: 16px 0;
+        }
+
+        .lobby-hero {
+            border-radius: 8px;
+            padding: 22px;
+            background: linear-gradient(135deg, #e9f8f0 0%, #ffffff 55%, #eef5ff 100%);
+            border: 1px solid #cfe3d8;
+            box-shadow: 0 4px 18px rgba(23, 32, 42, 0.08);
+            margin-bottom: 18px;
+        }
+
+        .lobby-title {
+            font-size: 40px;
+            font-weight: 900;
+            color: #008f5f;
+            line-height: 1.18;
+            margin-bottom: 8px;
+        }
+
+        .lobby-subtitle {
+            font-size: 22px;
+            color: #34495e;
+            line-height: 1.55;
+        }
+
+        .quick-card {
+            min-height: 170px;
+            background: #ffffff;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 18px;
+            box-shadow: 0 3px 12px rgba(23, 32, 42, 0.08);
+        }
+
+        .quick-card.primary {
+            border-color: rgba(0, 143, 95, 0.32);
+            background: #f3fcf7;
+        }
+
+        .quick-title {
+            font-size: 25px;
+            font-weight: 900;
+            color: #102030;
+            margin-bottom: 6px;
+        }
+
+        .quick-desc {
+            font-size: 20px;
+            color: var(--muted);
+            line-height: 1.45;
+        }
+
+        .calendar-strip {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(92px, 1fr));
+            gap: 10px;
+            margin: 12px 0 18px;
+        }
+
+        .calendar-day {
+            min-height: 112px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #ffffff;
+            padding: 12px;
+            box-shadow: 0 2px 8px rgba(23, 32, 42, 0.05);
+        }
+
+        .calendar-day.today {
+            border: 2px solid #008f5f;
+            background: #e9f8f0;
+        }
+
+        .calendar-day.dialysis {
+            border-color: rgba(198, 40, 69, 0.35);
+            background: #fff0f3;
+        }
+
+        .calendar-name {
+            font-size: 20px;
+            font-weight: 900;
+            color: #102030;
+        }
+
+        .calendar-date {
+            font-size: 18px;
+            color: var(--muted);
+            margin: 4px 0;
+        }
+
+        .calendar-note {
+            font-size: 18px;
+            font-weight: 800;
+            color: #008f5f;
+        }
+
+        .todo-item {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            border: 1px solid var(--line);
+            background: #ffffff;
+            border-radius: 8px;
+            padding: 14px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 8px rgba(23, 32, 42, 0.05);
+        }
+
+        .todo-icon {
+            font-size: 32px;
+            line-height: 1;
+            min-width: 38px;
+        }
+
+        .todo-title {
+            font-size: 22px;
+            font-weight: 900;
+            color: #102030;
+            margin-bottom: 2px;
+        }
+
+        .todo-desc {
+            font-size: 19px;
+            color: var(--muted);
+            line-height: 1.45;
         }
 
         .card {
@@ -336,7 +463,19 @@ def inject_style() -> None:
                 grid-template-columns: repeat(2, minmax(140px, 1fr));
             }
 
+            .calendar-strip {
+                grid-template-columns: repeat(2, minmax(140px, 1fr));
+            }
+
+            .quick-card {
+                min-height: 140px;
+            }
+
             .main-title {
+                font-size: 34px;
+            }
+
+            .lobby-title {
                 font-size: 34px;
             }
         }
@@ -904,6 +1043,167 @@ def medication_module() -> None:
     st.dataframe(weekly, use_container_width=True, hide_index=True)
 
 
+def go_to_module(module_name: str) -> None:
+    st.session_state.current_module = module_name
+    st.rerun()
+
+
+def today_meal_names() -> str:
+    try:
+        weekly_plan = build_generated_meal_plan(date.today())
+        today_plan = weekly_plan[date.today().weekday()]
+        return " / ".join(meal["name"] for meal in today_plan["meals"])
+    except Exception:
+        return "查看今日三餐计划"
+
+
+def lobby_reminders() -> list[dict]:
+    today_name = WEEK_DAYS[date.today().weekday()]
+    is_dialysis = today_name in st.session_state.dialysis_days
+    pending_meds = sum(1 for med in st.session_state.medications if status_for_med(med["id"]) == "pending")
+    missed_meds = sum(1 for med in st.session_state.medications if status_for_med(med["id"]) == "missed")
+
+    reminders = [
+        {
+            "icon": "🍽️",
+            "title": "今日饮食",
+            "desc": today_meal_names(),
+        },
+        {
+            "icon": "💊",
+            "title": "用药提醒",
+            "desc": f"待服用 {pending_meds} 个，已忘记 {missed_meds} 个。" if st.session_state.medications else "还没有添加药物。",
+        },
+    ]
+
+    if is_dialysis:
+        reminders.append(
+            {
+                "icon": "🩺",
+                "title": "今天是透析日",
+                "desc": "不要安排运动，注意休息，饮食和饮水按医护建议执行。",
+            }
+        )
+    else:
+        reminders.append(
+            {
+                "icon": "🚶",
+                "title": "今日运动",
+                "desc": "可以选择轻松步行15-20分钟，或做坐姿伸展。",
+            }
+        )
+
+    if st.session_state.glucose_records:
+        latest = st.session_state.glucose_records[-1]
+        reminders.append(
+            {
+                "icon": "🩸",
+                "title": "最近血糖",
+                "desc": f"{latest.get('血糖', '-') } mg/dL，记得继续记录趋势。",
+            }
+        )
+    else:
+        reminders.append(
+            {
+                "icon": "🩸",
+                "title": "血糖记录",
+                "desc": "今天还没有血糖记录，建议测量后保存。",
+            }
+        )
+
+    reminders.append(
+        {
+            "icon": "📷",
+            "title": "AI健康观察",
+            "desc": "如感觉脸肿、疲劳、胸闷或状态变差，可以拍照并填写症状。",
+        }
+    )
+    return reminders
+
+
+def render_lobby_calendar() -> None:
+    week_start = week_start_for(date.today())
+    today_index = date.today().weekday()
+    boxes = []
+    for index, day_name in enumerate(WEEK_DAYS):
+        day = week_start + timedelta(days=index)
+        classes = ["calendar-day"]
+        if index == today_index:
+            classes.append("today")
+        is_dialysis = day_name in st.session_state.dialysis_days
+        if is_dialysis:
+            classes.append("dialysis")
+        note = "透析" if is_dialysis else "轻活动"
+        if index == today_index:
+            note = f"今天 · {note}"
+        boxes.append(
+            f"""
+            <div class="{' '.join(classes)}">
+                <div class="calendar-name">{escape(day_name)}</div>
+                <div class="calendar-date">{day.strftime('%m-%d')}</div>
+                <div class="calendar-note">{escape(note)}</div>
+            </div>
+            """
+        )
+    st.html(f'<div class="calendar-strip">{"".join(boxes)}</div>')
+
+
+def home_module() -> None:
+    st.html(
+        """
+        <div class="lobby-hero">
+            <div class="lobby-title">💚 今日照护首页</div>
+            <div class="lobby-subtitle">大字版、手机友好。先看今天要做什么，再进入饮食、运动、血糖、用药或AI健康观察。</div>
+        </div>
+        """
+    )
+
+    section_title("快速进入")
+    cards = [
+        ("饮食助手", "🍽️", "查看今日三餐、详细用量和食物安全。"),
+        ("运动计划", "🚶", "透析日休息，非透析日做轻松运动。"),
+        ("血糖记录", "🩸", "记录血糖，查看趋势和风险颜色。"),
+        ("用药提醒", "💊", "查看今日药物，标记已服用或忘记。"),
+        ("AI健康观察", "📷", "拍照加症状，生成可解释风险评分。"),
+    ]
+
+    for start in range(0, len(cards), 2):
+        cols = st.columns(2)
+        for offset, col in enumerate(cols):
+            if start + offset >= len(cards):
+                continue
+            module_name, icon, desc = cards[start + offset]
+            with col:
+                st.html(
+                    f"""
+                    <div class="quick-card {'primary' if module_name == '饮食助手' else ''}">
+                        <div class="big-icon">{escape(icon)}</div>
+                        <div class="quick-title">{escape(module_name)}</div>
+                        <div class="quick-desc">{escape(desc)}</div>
+                    </div>
+                    """
+                )
+                if st.button(f"进入 {module_name}", key=f"home_{module_name}", use_container_width=True):
+                    go_to_module(module_name)
+
+    section_title("本周日历")
+    render_lobby_calendar()
+
+    section_title("今日提醒")
+    for item in lobby_reminders():
+        st.html(
+            f"""
+            <div class="todo-item">
+                <div class="todo-icon">{escape(item["icon"])}</div>
+                <div>
+                    <div class="todo-title">{escape(item["title"])}</div>
+                    <div class="todo-desc">{escape(item["desc"])}</div>
+                </div>
+            </div>
+            """
+        )
+
+
 def load_face_image(uploaded_file) -> Image.Image | None:
     if uploaded_file is None:
         return None
@@ -1444,6 +1744,9 @@ def face_observation_module() -> None:
 def main() -> None:
     setup_state()
     inject_style()
+    module_options = ["首页", "饮食助手", "运动计划", "血糖记录", "用药提醒", "AI健康观察"]
+    if st.session_state.current_module not in module_options:
+        st.session_state.current_module = "首页"
 
     with st.sidebar:
         st.html(
@@ -1453,10 +1756,13 @@ def main() -> None:
             </div>
             """
         )
+        current_index = module_options.index(st.session_state.current_module)
         module = st.selectbox(
             "请选择功能",
-            ["饮食助手", "运动计划", "血糖记录", "用药提醒", "AI健康观察"],
+            module_options,
+            index=current_index,
         )
+        st.session_state.current_module = module
         st.html(
             """
             <div style="font-size:18px;line-height:1.6;color:#a9b0be;margin-top:24px;">
@@ -1467,7 +1773,9 @@ def main() -> None:
             """
         )
 
-    if module == "饮食助手":
+    if module == "首页":
+        home_module()
+    elif module == "饮食助手":
         diet_module()
     elif module == "运动计划":
         exercise_module()
