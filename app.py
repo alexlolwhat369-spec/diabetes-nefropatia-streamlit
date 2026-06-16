@@ -20,7 +20,7 @@ st.set_page_config(
     page_title="糖尿病肾病照护助手",
     page_icon="💚",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 
@@ -485,6 +485,11 @@ def inject_style() -> None:
 
 
 def page_header(title: str, subtitle: str) -> None:
+    if st.session_state.get("current_module") != "首页":
+        back_col, _ = st.columns([1.2, 4])
+        with back_col:
+            if st.button("返回首页", key=f"back_{title}", use_container_width=True):
+                go_to_module("首页")
     st.html(
         f"""
         <div class="main-title">{escape(title)}</div>
@@ -1747,6 +1752,7 @@ def main() -> None:
     module_options = ["首页", "饮食助手", "运动计划", "血糖记录", "用药提醒", "AI健康观察"]
     if st.session_state.current_module not in module_options:
         st.session_state.current_module = "首页"
+    module = st.session_state.current_module
 
     with st.sidebar:
         st.html(
@@ -1756,13 +1762,6 @@ def main() -> None:
             </div>
             """
         )
-        current_index = module_options.index(st.session_state.current_module)
-        module = st.selectbox(
-            "请选择功能",
-            module_options,
-            index=current_index,
-        )
-        st.session_state.current_module = module
         st.html(
             """
             <div style="font-size:18px;line-height:1.6;color:#a9b0be;margin-top:24px;">
@@ -1772,6 +1771,16 @@ def main() -> None:
             </div>
             """
         )
+        if module != "首页":
+            st.html(
+                f"""
+                <div style="font-size:20px;font-weight:800;color:#34495e;margin-top:24px;">
+                当前页面<br>{escape(module)}
+                </div>
+                """
+            )
+            if st.button("返回首页", key="sidebar_back_home", use_container_width=True):
+                go_to_module("首页")
 
     if module == "首页":
         home_module()
