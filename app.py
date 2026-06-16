@@ -178,7 +178,7 @@ def inject_style() -> None:
 
         .lobby-hero {
             border-radius: 8px;
-            padding: 22px;
+            padding: 26px;
             background: linear-gradient(135deg, #e9f8f0 0%, #ffffff 55%, #eef5ff 100%);
             border: 1px solid #cfe3d8;
             box-shadow: 0 4px 18px rgba(23, 32, 42, 0.08);
@@ -194,17 +194,17 @@ def inject_style() -> None:
         }
 
         .lobby-subtitle {
-            font-size: 22px;
+            font-size: 24px;
             color: #34495e;
-            line-height: 1.55;
+            line-height: 1.5;
         }
 
         .quick-card {
-            min-height: 170px;
+            min-height: 190px;
             background: #ffffff;
             border: 1px solid var(--line);
             border-radius: 8px;
-            padding: 18px;
+            padding: 20px;
             box-shadow: 0 3px 12px rgba(23, 32, 42, 0.08);
         }
 
@@ -214,16 +214,59 @@ def inject_style() -> None:
         }
 
         .quick-title {
-            font-size: 25px;
+            font-size: 28px;
             font-weight: 900;
             color: #102030;
             margin-bottom: 6px;
         }
 
         .quick-desc {
-            font-size: 20px;
+            font-size: 21px;
             color: var(--muted);
             line-height: 1.45;
+        }
+
+        .action-card {
+            min-height: 220px;
+            background: #ffffff;
+            border: 1px solid #d8e2ea;
+            border-radius: 8px;
+            padding: 22px 20px;
+            box-shadow: 0 4px 16px rgba(23, 32, 42, 0.08);
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .action-card.primary {
+            background: #f3fcf7;
+            border-color: rgba(0, 143, 95, 0.35);
+        }
+
+        .action-icon {
+            font-size: 54px;
+            line-height: 1;
+            margin-bottom: 12px;
+        }
+
+        .action-title {
+            font-size: 31px;
+            line-height: 1.2;
+            font-weight: 900;
+            color: #102030;
+            margin-bottom: 10px;
+        }
+
+        .action-hint {
+            font-size: 20px;
+            line-height: 1.45;
+            color: #52616f;
+        }
+
+        .section-tip {
+            font-size: 20px;
+            line-height: 1.5;
+            color: #52616f;
+            margin: 2px 0 14px;
         }
 
         .calendar-strip {
@@ -470,6 +513,10 @@ def inject_style() -> None:
 
             .quick-card {
                 min-height: 140px;
+            }
+
+            .action-card {
+                min-height: 200px;
             }
 
             .main-title {
@@ -1164,6 +1211,16 @@ def lobby_reminders() -> list[dict]:
     return reminders
 
 
+def action_card_hint(module_name: str) -> str:
+    hints = {
+        "饮食助手": "看今天吃什么",
+        "运动计划": "看今天动一动",
+        "血糖记录": "马上记血糖",
+        "用药提醒": "看今天要吃的药",
+        "AI健康观察": "拍照看状态",
+    }
+    return hints.get(module_name, "点一下进入")
+
 def render_lobby_calendar() -> None:
     week_start = week_start_for(date.today())
     today_index = date.today().weekday()
@@ -1196,7 +1253,7 @@ def home_module() -> None:
         """
         <div class="lobby-hero">
             <div class="lobby-title">💚 今日照护首页</div>
-            <div class="lobby-subtitle">大字版、手机友好。先看今天要做什么，再进入饮食、运动、血糖、用药或AI健康观察。</div>
+            <div class="lobby-subtitle">先看今天要做什么，再点大按钮进入功能。</div>
         </div>
         """
     )
@@ -1216,13 +1273,14 @@ def home_module() -> None:
                 """
             )
 
-    section_title("快速进入")
+    section_title("点一下进入")
+    st.html('<div class="section-tip">只看大图标和大按钮，就可以进入对应功能。</div>')
     cards = [
-        ("饮食助手", "🍽️", "查看今日三餐、详细用量和食物安全。"),
-        ("运动计划", "🚶", "透析日休息，非透析日做轻松运动。"),
-        ("血糖记录", "🩸", "记录血糖，查看趋势和风险颜色。"),
-        ("用药提醒", "💊", "查看今日药物，标记已服用或忘记。"),
-        ("AI健康观察", "📷", "拍照加症状，生成可解释风险评分。"),
+        ("饮食助手", "🍽️"),
+        ("运动计划", "🚶"),
+        ("血糖记录", "🩸"),
+        ("用药提醒", "💊"),
+        ("AI健康观察", "📷"),
     ]
 
     for start in range(0, len(cards), 2):
@@ -1230,18 +1288,18 @@ def home_module() -> None:
         for offset, col in enumerate(cols):
             if start + offset >= len(cards):
                 continue
-            module_name, icon, desc = cards[start + offset]
+            module_name, icon = cards[start + offset]
             with col:
                 st.html(
                     f"""
-                    <div class="quick-card {'primary' if module_name == '饮食助手' else ''}">
-                        <div class="big-icon">{escape(icon)}</div>
-                        <div class="quick-title">{escape(module_name)}</div>
-                        <div class="quick-desc">{escape(desc)}</div>
+                    <div class="action-card {'primary' if module_name == '饮食助手' else ''}">
+                        <div class="action-icon">{escape(icon)}</div>
+                        <div class="action-title">{escape(module_name)}</div>
+                        <div class="action-hint">{escape(action_card_hint(module_name))}</div>
                     </div>
                     """
                 )
-                if st.button(f"进入 {module_name}", key=f"home_{module_name}", use_container_width=True):
+                if st.button(f"打开 {module_name}", key=f"home_{module_name}", use_container_width=True):
                     go_to_module(module_name)
 
     section_title("本周日历")
@@ -1260,7 +1318,6 @@ def home_module() -> None:
             </div>
             """
         )
-
 
 def load_face_image(uploaded_file) -> Image.Image | None:
     if uploaded_file is None:
