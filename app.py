@@ -70,6 +70,8 @@ def setup_state() -> None:
         st.session_state.face_history = []
     if "hospital_phone" not in st.session_state:
         st.session_state.hospital_phone = ""
+    if "face_source_select" not in st.session_state:
+        st.session_state.face_source_select = "手机/电脑摄像头拍照"
     if "current_module" not in st.session_state:
         st.session_state.current_module = "首页"
 
@@ -111,7 +113,7 @@ def inject_style() -> None:
             font-weight: 700 !important;
         }
 
-        .stButton > button, .stFormSubmitButton > button {
+        .stButton > button, .stFormSubmitButton > button, .stDownloadButton > button {
             min-height: 56px;
             border-radius: 8px;
             border: 1px solid rgba(0, 143, 95, 0.45);
@@ -122,7 +124,7 @@ def inject_style() -> None:
             box-shadow: 0 1px 2px rgba(23, 32, 42, 0.08);
         }
 
-        .stButton > button:hover, .stFormSubmitButton > button:hover {
+        .stButton > button:hover, .stFormSubmitButton > button:hover, .stDownloadButton > button:hover {
             border-color: var(--primary);
             color: var(--primary);
         }
@@ -267,6 +269,46 @@ def inject_style() -> None:
             line-height: 1.5;
             color: #52616f;
             margin: 2px 0 14px;
+        }
+
+        .module-actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            gap: 12px;
+            margin: 10px 0 16px;
+        }
+
+        .module-action-card {
+            min-height: 152px;
+            background: #ffffff;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 18px;
+            box-shadow: 0 3px 12px rgba(23, 32, 42, 0.06);
+        }
+
+        .module-action-card.primary {
+            background: #f3fcf7;
+            border-color: rgba(0, 143, 95, 0.35);
+        }
+
+        .module-action-card.alert {
+            background: #fff4f6;
+            border-color: rgba(198, 40, 69, 0.28);
+        }
+
+        .module-action-title {
+            font-size: 26px;
+            line-height: 1.2;
+            font-weight: 900;
+            color: #102030;
+            margin: 8px 0 6px;
+        }
+
+        .module-action-desc {
+            font-size: 19px;
+            line-height: 1.45;
+            color: #52616f;
         }
 
         .calendar-strip {
@@ -519,6 +561,14 @@ def inject_style() -> None:
                 min-height: 200px;
             }
 
+            .module-actions {
+                grid-template-columns: 1fr;
+            }
+
+            .module-action-card {
+                min-height: 138px;
+            }
+
             .main-title {
                 font-size: 34px;
             }
@@ -547,6 +597,10 @@ def page_header(title: str, subtitle: str) -> None:
 
 def section_title(text: str) -> None:
     st.html(f'<div class="card-title" style="margin-top: 18px;">{escape(text)}</div>')
+
+
+def dataframe_csv_bytes(df: pd.DataFrame) -> bytes:
+    return df.to_csv(index=False).encode("utf-8-sig")
 
 
 def info_card(title: str, body: str, icon: str = "ℹ️") -> None:
@@ -895,6 +949,34 @@ def glucose_zone(value: float) -> tuple[str, str]:
 def glucose_module() -> None:
     page_header("血糖记录", "记录每日血糖，查看最近30天趋势和风险颜色区。")
 
+    latest_value = (
+        int(st.session_state.glucose_records[-1]["血糖"])
+        if st.session_state.glucose_records
+        else None
+    )
+    latest_desc = f"{latest_value} mg/dL" if latest_value is not None else "今天还没有记录"
+    st.html(
+        f"""
+        <div class="module-actions">
+            <div class="module-action-card primary">
+                <div class="big-icon">🩸</div>
+                <div class="module-action-title">马上记录</div>
+                <div class="module-action-desc">先在下面输入今天的血糖，再按保存。</div>
+            </div>
+            <div class="module-action-card">
+                <div class="big-icon">📈</div>
+                <div class="module-action-title">最新血糖</div>
+                <div class="module-action-desc">{escape(latest_desc)}</div>
+            </div>
+            <div class="module-action-card">
+                <div class="big-icon">⬇️</div>
+                <div class="module-action-title">导出记录</div>
+                <div class="module-action-desc">保存最近30天记录，给家人或医生查看。</div>
+            </div>
+        </div>
+        """
+    )
+
     with st.form("glucose_form", clear_on_submit=False):
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -982,6 +1064,13 @@ def glucose_module() -> None:
     section_title("最近30天历史")
     display = recent.sort_values("日期时间", ascending=False)[["日期", "时间", "血糖", "测量时间", "备注"]]
     st.dataframe(display, use_container_width=True, hide_index=True)
+    st.download_button(
+        "⬇️ 下载血糖记录 CSV",
+        data=dataframe_csv_bytes(display),
+        file_name=f"glucose_records_{date.today().isoformat()}.csv",
+        mime="text/csv",
+        use_container_width=True,
+    )
 
 
 def today_key(med_id: int, day: date | None = None) -> str:
@@ -1005,8 +1094,49 @@ def set_med_status(med_id: int, status: str) -> None:
     st.session_state.med_log[today_key(med_id)] = status
 
 
+def set_all_meds_status(status: str) -> None:
+    for med in st.session_state.medications:
+        st.session_state.med_log[today_key(med["id"])] = status
+
+
 def medication_module() -> None:
     page_header("用药提醒", "添加药物、查看今日清单，并记录本周服药完成情况。")
+
+    meds = st.session_state.medications
+    pending_count = sum(1 for med in meds if status_for_med(med["id"]) == "pending")
+    missed_count = sum(1 for med in meds if status_for_med(med["id"]) == "missed")
+    taken_count = sum(1 for med in meds if status_for_med(med["id"]) == "taken")
+    section_title("快速操作")
+    st.html(
+        f"""
+        <div class="module-actions">
+            <div class="module-action-card primary">
+                <div class="big-icon">💊</div>
+                <div class="module-action-title">今天药物</div>
+                <div class="module-action-desc">已服用 {taken_count} 个，待服用 {pending_count} 个。</div>
+            </div>
+            <div class="module-action-card {'alert' if missed_count else ''}">
+                <div class="big-icon">⏰</div>
+                <div class="module-action-title">忘记提醒</div>
+                <div class="module-action-desc">今天忘记 {missed_count} 个药。不要自行补双倍剂量。</div>
+            </div>
+            <div class="module-action-card">
+                <div class="big-icon">⬇️</div>
+                <div class="module-action-title">导出药单</div>
+                <div class="module-action-desc">可以下载今日药物和每周完成情况。</div>
+            </div>
+        </div>
+        """
+    )
+    quick_col1, quick_col2 = st.columns(2)
+    with quick_col1:
+        if st.button("✅ 今天全部已服用", key="med_all_taken", use_container_width=True, disabled=not meds):
+            set_all_meds_status("taken")
+            st.rerun()
+    with quick_col2:
+        if st.button("⏰ 今天全部改为待服用", key="med_all_pending", use_container_width=True, disabled=not meds):
+            set_all_meds_status("pending")
+            st.rerun()
 
     with st.form("med_form", clear_on_submit=True):
         section_title("添加药物")
@@ -1093,6 +1223,36 @@ def medication_module() -> None:
         )
     weekly = pd.DataFrame(rows)
     st.dataframe(weekly, use_container_width=True, hide_index=True)
+    export_med_list = pd.DataFrame(
+        [
+            {
+                "药物名称": med["name"],
+                "剂量": med["dose"],
+                "频率": med["frequency"],
+                "时间": med["time"],
+                "说明": med["notes"] or "无",
+                "今日状态": status_label(status_for_med(med["id"])),
+            }
+            for med in meds
+        ]
+    )
+    download_col1, download_col2 = st.columns(2)
+    with download_col1:
+        st.download_button(
+            "⬇️ 下载今日药物 CSV",
+            data=dataframe_csv_bytes(export_med_list),
+            file_name=f"medications_today_{date.today().isoformat()}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+    with download_col2:
+        st.download_button(
+            "⬇️ 下载本周服药 CSV",
+            data=dataframe_csv_bytes(weekly),
+            file_name=f"medication_week_{date.today().isoformat()}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
 
 
 def go_to_module(module_name: str) -> None:
@@ -1661,6 +1821,45 @@ def face_observation_module() -> None:
         """
     )
     st.html(f'<div class="notice">🤖 {escape(model_card_text())}</div>')
+    st.html(
+        """
+        <div class="notice" style="border-color:rgba(198,40,69,0.28);background:#fff4f6;color:#6a1730;">
+        🚨 这只是原型辅助工具，不是诊断结果。如果出现胸痛、呼吸困难、严重头晕、意识不清、明显水肿或严重低血糖，请立即联系医生、透析中心或急救。
+        </div>
+        """
+    )
+
+    section_title("快速操作")
+    st.html(
+        """
+        <div class="module-actions">
+            <div class="module-action-card primary">
+                <div class="big-icon">📸</div>
+                <div class="module-action-title">现在拍照</div>
+                <div class="module-action-desc">手机或电脑直接拍正面照片。</div>
+            </div>
+            <div class="module-action-card">
+                <div class="big-icon">🖼️</div>
+                <div class="module-action-title">上传照片</div>
+                <div class="module-action-desc">如果已经拍好照片，就直接上传。</div>
+            </div>
+            <div class="module-action-card">
+                <div class="big-icon">⬇️</div>
+                <div class="module-action-title">导出观察</div>
+                <div class="module-action-desc">下载历史评分，方便家人或医生查看。</div>
+            </div>
+        </div>
+        """
+    )
+    action_face_1, action_face_2 = st.columns(2)
+    with action_face_1:
+        if st.button("📸 使用摄像头", key="face_use_camera", use_container_width=True):
+            st.session_state.face_source_select = "手机/电脑摄像头拍照"
+            st.rerun()
+    with action_face_2:
+        if st.button("🖼️ 使用上传照片", key="face_use_upload", use_container_width=True):
+            st.session_state.face_source_select = "上传照片"
+            st.rerun()
 
     st.session_state.hospital_phone = st.text_input(
         "☎️ 医院或透析中心电话（可选）",
@@ -1668,7 +1867,11 @@ def face_observation_module() -> None:
         placeholder="例如：120 或 医院电话",
     )
 
-    source = st.selectbox("📸 选择照片方式", ["手机/电脑摄像头拍照", "上传照片"])
+    source = st.selectbox(
+        "📸 选择照片方式",
+        ["手机/电脑摄像头拍照", "上传照片"],
+        key="face_source_select",
+    )
     if source == "手机/电脑摄像头拍照":
         photo_file = st.camera_input("请正面对着镜头，光线明亮，不戴口罩和墨镜")
     else:
@@ -1853,7 +2056,15 @@ def face_observation_module() -> None:
 
     if st.session_state.face_history:
         section_title("观察历史")
-        st.dataframe(pd.DataFrame(st.session_state.face_history).tail(10), use_container_width=True, hide_index=True)
+        history_df = pd.DataFrame(st.session_state.face_history)
+        st.dataframe(history_df.tail(10), use_container_width=True, hide_index=True)
+        st.download_button(
+            "⬇️ 下载观察历史 CSV",
+            data=dataframe_csv_bytes(history_df),
+            file_name=f"ai_observation_{date.today().isoformat()}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
 
 
 def main() -> None:
