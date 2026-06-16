@@ -584,6 +584,7 @@ def inject_style() -> None:
 
 def page_header(title: str, subtitle: str) -> None:
     if st.session_state.get("current_module") != "首页":
+        st.html('<div style="height: 30px;"></div>')
         if st.button("← 返回首页", key=f"back_{title}", use_container_width=True):
             go_to_module("首页")
     st.html(
